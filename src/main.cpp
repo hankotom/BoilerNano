@@ -38,7 +38,7 @@ enum states{Stop, Starting, Work, Stopping} HeatState;
 
 // Generally, you should use "unsigned long" for variables that hold time
 // The value will quickly become too large for an int to store
-unsigned long previousMillis = 0;        // will store last time LED was updated
+unsigned long stateChangeTimestamp = 0; // Egyetlen időbélyeg elég az állapotváltásokhoz
 unsigned long TimerForStart = 0;        // will store last time LED was updated
 unsigned long TimerForStop = 0;        // will store last time LED was updated
 
@@ -53,85 +53,82 @@ void setup() {
   pinMode(boilerPin, OUTPUT);
   pinMode(ledPin, OUTPUT);
 
-  Serial.begin(57600);
-  while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB port only
-  }
-  Serial.println("Goodnight moon!");
+  // Serial.begin(57600);
+  // while (!Serial) {
+  //   ; // wait for serial port to connect. Needed for native USB port only
+  // }
+  // Serial.println("Goodnight moon!");
 
   boiler = BOILEROFF;
   pump = PUMPOFF;
   HeatState = Stop;
 
-  previousMillis = millis();
+  stateChangeTimestamp = millis();
 
 }
 
 void loop() {
 
+  unsigned long currentMillis = millis(); // Olvassuk ki egyszer a ciklus elején
+  thermostat = digitalRead(thermostatPin);
 
-  if (previousMillis + 1 <= millis())   // check onli in every milisecond
-  {
-    previousMillis = millis();
-    thermostat = digitalRead(thermostatPin);
+  switch (HeatState){
 
-    switch (HeatState){
+    case Stop:
+      boiler = BOILEROFF;
+      pump = PUMPOFF;
+      if(thermostat == THERMOSTATON){
+        HeatState = Starting;
+        stateChangeTimestamp = currentMillis;  // Rögzítsük az időpontot
+      }
+      break;
 
-      case Stop:
-        boiler = BOILEROFF;
-        pump = PUMPOFF;
-        if(thermostat == THERMOSTATON){
-          HeatState = Starting;
-          TimerForStart = 0;
-        }
-        break;
-
-      case Starting:
-        boiler = BOILEROFF;
-        pump = PUMPON;
-        if(thermostat == THERMOSTATOFF){
-          HeatState = Stop;
-        }
-        if((thermostat == THERMOSTATON) && (TimerForStart++ >= StartDelay)){
-          HeatState = Work;
-        }
-        break;
-
-      case Work:
-        boiler = BOILERON;
-        pump = PUMPON;
-        if(thermostat == THERMOSTATOFF){
-          HeatState = Stopping;
-          TimerForStop = 0;
-        }
-        break;
-
-      case Stopping:
-        boiler = BOILEROFF;
-        pump = PUMPON;
-
-        if(thermostat == THERMOSTATON){
-          HeatState = Work;
-        }
-
-        if((thermostat == THERMOSTATOFF) && (TimerForStop++ >= StopDelay)){
-          HeatState = Stop;
-        }
-
-        break;
-
-      default:
-        boiler = BOILEROFF;
-        pump = PUMPOFF;
+    case Starting:
+      boiler = BOILEROFF;
+      pump = PUMPON;
+      if(thermostat == THERMOSTATOFF){
         HeatState = Stop;
-        break;
-    }
-    digitalWrite(boilerPin, boiler);
-    digitalWrite(pumpPin, pump);
-    if ((millis() % 400) == 0){
-      Serial.println(millis());
-      Serial.print("Kazan: ");Serial.print(boiler); Serial.print(" Szivattyu: ");Serial.println(pump);
-    }
+      }
+      if((thermostat == THERMOSTATON) && (currentMillis - stateChangeTimestamp >= StartDelay)){
+        HeatState = Work;
+      }
+      break;
+
+    case Work:
+      boiler = BOILERON;
+      pump = PUMPON;
+      if(thermostat == THERMOSTATOFF){
+        HeatState = Stopping;
+        stateChangeTimestamp = currentMillis;  // Rögzítsük az időpontot
+      }
+      break;
+
+    case Stopping:
+      boiler = BOILEROFF;
+      pump = PUMPON;
+
+      if(thermostat == THERMOSTATON){
+        HeatState = Work;
+      }
+
+      if((thermostat == THERMOSTATOFF) && (currentMillis - stateChangeTimestamp >= StopDelay)){
+        HeatState = Stop;
+      }
+
+      break;
+
+    default:
+      boiler = BOILEROFF;
+      pump = PUMPOFF;
+      HeatState = Stop;
+      break;
+
+  digitalWrite(boilerPin, boiler);
+  digitalWrite(pumpPin, pump);
+    // if ((millis() % 400) == 0){
+    //   Serial.println(millis());
+    //   Serial.print("Kazan: ");Serial.print(boiler); Serial.print(" Szivattyu: ");Serial.println(pump);
+    // }
 
   }
 //  if ((millis() % 400) == 0)
